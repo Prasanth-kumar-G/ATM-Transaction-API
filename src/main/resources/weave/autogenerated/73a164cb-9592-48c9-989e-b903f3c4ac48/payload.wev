@@ -1,0 +1,10 @@
+%dw 2.0
+
+type auto_73a164cb_9592_48c9_989e_b903f3c4ac48_Output_Variables_Org_payload = {|
+  accountNum: String, 
+  atmPin: String, 
+  amountToBeWithdraw: Number, 
+  bank: String, 
+  Type: "current" | "savings"
+|}
+

@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd 
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd">
+	<sub-flow name="check-balance-subFlow" doc:id="62296fba-e1b0-472f-804f-443fca9dec32" >
+<ee:transform doc:name="Transform Message" doc:id="684363d8-c02e-4d60-9e2d-97db9b8e9c5c" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"bank": attributes.queryParams.bank,
+	"type": attributes.queryParams."type",
+	"accountNum": payload.accountNum,
+	"atmPin": payload.atmPin,
+
+}]]></ee:set-payload>
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="balanceCheck" ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"bank": attributes.queryParams.bank,
+	"type": attributes.queryParams."type",
+	"accountNum": payload.accountNum,
+	"atmPin": payload.atmPin,
+
+}]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<db:select doc:name="Select" doc:id="ef3ee239-5df2-4ffa-99d7-2432817a8c02" config-ref="Database_Config">
+			<db:sql ><![CDATA[select * from Bank_Transactions where (custAccNum = :accountNum) and (bankName = :bank);]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+	accountNum: vars.balanceCheck.accountNum,
+	bank: vars.balanceCheck.bank
+}]]]></db:input-parameters>
+		</db:select>
+		<choice doc:name="Choice" doc:id="73867f65-9cef-41d0-9958-017d2a1c7882" >
+			<when expression="#[sizeOf(payload) == 0]">
+				<ee:transform doc:name="Transform Message" doc:id="64677dcd-438d-42c4-9044-c4bb6982b51f" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	status: "Account " ++ vars.balanceCheck.accountNum ++" does not exist, Enter Valid Details"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise >
+				<ee:transform doc:name="Transform Message" doc:id="7eebac5e-fae7-4b2d-89af-870f9cd12ee7">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<set-variable value="#[payload]" doc:name="balance" doc:id="7ecd4b19-4b72-474d-ba86-b351ff6f3e55" variableName="balance"/>
+				<flow-ref doc:name="accntstatus-update" doc:id="f47fa7b1-d4bf-4dc0-b658-83efa8765aea" name="Balance-check-implSub_Flow" />
+			</otherwise>
+		</choice>
+    
+	</sub-flow>
+	<sub-flow name="Balance-check-implSub_Flow" doc:id="d634888d-908c-45c9-ba55-ca6d8d27169a" >
+	<choice doc:name="Choice" doc:id="06f15fb0-f6eb-4cb4-a214-b1d09eaacaae">
+					<when expression='#[(payload.accountStatus) == ["Active"]]'>
+						<logger level="INFO" doc:name="Logger" doc:id="2c5e0a67-253d-49df-aa58-5230c298667f" />
+						<choice doc:name="Choice" doc:id="a50642d0-cf81-43b1-aac8-59bab796e079">
+							<when expression="#[payload.atmPin == [vars.balanceCheck.atmPin]]">
+								<ee:transform doc:name="Transform Message" doc:id="0825e7b1-9cf0-4ac0-9a3c-4b61b54c8526">
+							<ee:message>
+								<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"status" : "Your total balance in " ++ vars.balanceCheck.accountNum ++ " as on " ++ now() as Date {format: "dd MMMM YYYY"} ++ " is " ++ vars.balance.totalBalance[0] as String
+}]]></ee:set-payload>
+							</ee:message>
+						</ee:transform>
+							</when>
+							<when expression="#[payload.atmPin != [vars.balanceCheck.atmPin]]">
+								<flow-ref doc:name="Invalid_ATM_Pin" doc:id="939b4b2b-1310-436b-b06b-47877e3147df" name="Invalid_ATM_Pin"/>
+							
+</when>
+						</choice>
+					</when>
+					<otherwise>
+						<ee:transform doc:name="Transform Message" doc:id="89a6d39c-d86b-476d-a65b-769ae52ab03f">
+							<ee:message>
+								<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"message": "Account:" ++ vars.balanceCheck.accountNum ++ " temporarily blocked,Please visit
+nearest Branch"
+}]]></ee:set-payload>
+							</ee:message>
+						</ee:transform>
+					</otherwise>
+				</choice>
+	
+	</sub-flow>
+	<sub-flow name="Invalid_ATM_Pin" doc:id="0c05cd34-e64f-4bfb-948c-4d773440d8b3" >
+		<db:update doc:name="Update" doc:id="257537ac-2658-4dfe-b4bd-9546e6f365b7" config-ref="Database_Config">
+									<db:sql><![CDATA[UPDATE Bank_Transactions 
+SET wrongPin = (:wrongPin)
+WHERE custAccNum = :AccountNum ;]]></db:sql>
+									<db:input-parameters><![CDATA[#[{
+	AccountNum: vars.balanceCheck.accountNum,
+	wrongPin: vars.balance.wrongPin[0] + 1
+}]]]></db:input-parameters>
+								</db:update>
+		<db:select doc:name="Select" doc:id="a7de6539-cf5e-4806-a89f-cc88709ce31e" config-ref="Database_Config" target="Pin_count">
+									<db:sql><![CDATA[select * from Bank_Transactions where custName = :customerName;]]></db:sql>
+									<db:input-parameters><![CDATA[#[{
+	customerName: vars.balance.custName[0]
+}]]]></db:input-parameters>
+								</db:select>
+		<set-variable doc:name="Attempts" doc:id="ded047e4-c083-42bc-8b6d-e76f1a1d580a" variableName="Attempts" value="#[vars.Pin_count.wrongPin[0]]" />
+		<db:update doc:name="Update" doc:id="6ee009f9-b720-418a-bd56-147881c339e9" config-ref="Database_Config">
+									<db:sql><![CDATA[UPDATE Bank_Transactions 
+SET accountStatus = (:accountStatus)
+WHERE custAccNum = :AccountNum ;]]></db:sql>
+									<db:input-parameters><![CDATA[#[{
+	AccountNum: vars.balanceCheck.accountNum,
+	accountStatus: "blocked"
+}]]]></db:input-parameters>
+								</db:update>
+		<ee:transform doc:name="Transform Message" doc:id="f43e4160-caa2-41d6-af88-9cbd12722465">
+									<ee:message>
+										<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"Alert" : if(vars.Attempts < 3) (3 - vars.Pin_count.wrongPin[0]) else "Maximum Attempts reached. Your Account " ++ vars.balance.custAccNum[0] as String ++" is
+temporarily blocked. Please reach nearest Branch"
+}]]></ee:set-payload>
+									</ee:message>
+								</ee:transform>
+	</sub-flow>
+</mule>

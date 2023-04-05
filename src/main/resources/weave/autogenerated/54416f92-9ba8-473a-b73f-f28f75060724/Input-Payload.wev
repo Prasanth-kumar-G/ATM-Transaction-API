@@ -1,0 +1,9 @@
+%dw 2.0
+
+type auto_54416f92_9ba8_473a_b73f_f28f75060724_Input_Payload = {
+  atmPin: String, 
+  accountNum: String, 
+  amountToBeWithdraw: Number, 
+  _?: Any
+}
+

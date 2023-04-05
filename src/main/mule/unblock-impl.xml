@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:db="http://www.mulesoft.org/schema/mule/db" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd">
+	<sub-flow name="unblock-implSub_Flow" doc:id="ebc1ced4-1bb6-4289-accd-a157e7acd9f5" >
+		<ee:transform doc:name="Transform Message" doc:id="7991e96e-42c8-491a-bf28-3d98d14348cf" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"user": payload.user,
+	"password": payload.password,
+	"accountNum": payload.accountNum,
+	"bank": payload.bank,
+
+}]]></ee:set-payload>
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="unblock" ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"user": payload.user,
+	"password": payload.password,
+	"accountNum": payload.accountNum,
+	"bank": payload.bank,
+
+}]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<choice doc:name="Choice" doc:id="f0bd9b4c-1890-4f3b-b7a0-113b56aa23f2" >
+			<when expression='#[payload.user == "admin" and payload.password == "admin"]'>
+				<db:select doc:name="Select" doc:id="ebbbe94f-c787-49e7-b3bf-3ce521516a5a" config-ref="Database_Config">
+					<db:sql ><![CDATA[SELECT * FROM bank_transactions where (custAccNum = :accountNum)
+ and (bankName = :bank);]]></db:sql>
+					<db:input-parameters ><![CDATA[#[{
+	accountNum: payload.accountNum,
+	bank: payload.bank
+}]]]></db:input-parameters>
+				</db:select>
+				<set-variable value="#[payload]" doc:name="acntDetails" doc:id="3bbf8974-40f4-48b0-99f6-54d976edb439" variableName="acntDetails"/>
+				<choice doc:name="Choice" doc:id="83da812d-a46b-4631-a3e9-1182253e965d" >
+					<when expression="#[sizeOf(payload) &gt; 0]">
+						<choice doc:name="Choice" doc:id="81e2be39-b977-4ad5-a32f-a15bdc223d64" >
+							<when expression='#[vars.acntDetails.accountStatus[0] == "Active"]'>
+								<ee:transform doc:name="Transform Message" doc:id="e538702f-c3e9-4276-b509-9bebc56e9f5d">
+									<ee:message>
+										<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	status: "Account " ++ vars.acntDetails.custAccNum[0] ++" is Active."
+}]]></ee:set-payload>
+									</ee:message>
+								</ee:transform>
+							</when>
+							<otherwise>
+								<logger level="INFO" doc:name="Logger" doc:id="3594717a-9050-4469-812c-526e1901406a" message='#["Account is Blocked, Now Activating the Account. Please wait !"]'/>
+								<db:update doc:name="Update" doc:id="9cb613aa-9949-464b-99b6-2c10c6a4ba02" config-ref="Database_Config">
+									<db:sql><![CDATA[UPDATE Bank_Transactions 
+SET accountStatus = "Active",
+wrongPin = 0
+WHERE custAccNum = :accountNum ;]]></db:sql>
+									<db:input-parameters><![CDATA[#[{
+	accountNum: vars.acntDetails.custAccNum[0]
+}]]]></db:input-parameters>
+								</db:update>
+								<ee:transform doc:name="Transform Message" doc:id="cd181c16-4575-42dc-a6c5-7c240f64ac15">
+									<ee:message>
+										<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	status: "Account " ++ vars.acntDetails.custAccNum[0] ++ " is Unblocked."
+}]]></ee:set-payload>
+									</ee:message>
+								</ee:transform>
+							</otherwise>
+						</choice>
+					</when>
+					<otherwise >
+						<ee:transform doc:name="Transform Message" doc:id="b86b8b4a-5b2d-46dc-8173-cae1d9d8956a" >
+							<ee:message >
+								<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	status: "Account " ++ vars.unblock.accountNum ++ " does not exist, Enter Valid Details"
+}]]></ee:set-payload>
+							</ee:message>
+						</ee:transform>
+					</otherwise>
+				</choice>
+			</when>
+			<otherwise >
+				<logger level="INFO" doc:name="Logger" doc:id="93838b0f-ba4a-490a-b894-0fc95cc673e8" message='#["Invalid User and Password"]'/>
+				<ee:transform doc:name="Transform Message" doc:id="25527bc8-633f-4159-a639-c8e8a2c50e12" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	status: "Invalid User and Password"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+	</sub-flow>
+</mule>

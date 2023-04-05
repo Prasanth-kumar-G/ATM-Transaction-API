@@ -1,0 +1,8 @@
+{
+  "sampleData": {
+    "59b7b99c-d136-4d7b-aba1-4aa0fd299894": {
+      "payload": "sample_data/list_java.dwl",
+      "vars-var_payload": "sample_data/json.json"
+    }
+  }
+}

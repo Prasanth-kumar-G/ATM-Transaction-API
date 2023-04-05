@@ -1,0 +1,96 @@
+#%RAML 1.0
+title: ATM-Transactions-API
+version: v1
+protocols: [HTTP, HTTPS]
+
+types:
+  accountCreation : !include datatypes/accountCreate_post_request_datatype.raml
+
+  checkBalance: !include datatypes/checkBalance_post_request_dataType.raml
+
+  withdraw: !include datatypes/withdraw_post_request_dataType.raml
+
+  unblock: !include datatypes/unblock_put_request_dataType.raml
+
+/createAccount:
+  post:
+    queryParameters:
+      customerName:
+        minLength: 4
+        maxLength: 45
+      bank:
+        enum:
+          - ICICI
+          - AXIS
+          - HDFC
+      type:
+        enum: [savings, current]
+      branchName:
+        maxLength: 10
+        minLength: 4
+    body:
+      application/json:
+        example: !include example/createAccount_POST_request.json
+        type: accountCreation
+    responses:
+      201:
+        body:
+          application/json:
+            example:
+              {"status" : "Account Created 
+              Successfully  with Account
+              Number xxxxxxxx"}
+
+/checkBalance:
+  post:
+    queryParameters:
+      bank:
+        enum: [ICICI, AXIS, HDFC]
+      type:
+        enum: [savings, current]
+    body:
+      application/json:
+        example: !include example/checkBalance_post_request.json
+        type: checkBalance
+    responses:
+      200:
+        body:
+          application/json:
+            example:
+              {"status" : "Your total balance 
+                is xxxxxxxx as on 20-May-2020
+                is xxxxxx"}
+
+/withDraw:
+  post:
+    queryParameters:
+        bank:
+          enum: [HDFC, ICICI, AXIS]
+        type:
+          enum: [savings, current]
+    body:
+      application/json:
+        example: !include example/withdraw_post_request.json
+        type: withdraw
+    responses:
+      200:
+        body:
+          application/json:
+            example:
+              {"status": "Amount xxxx is debited. 
+              Your total balance is 
+              xxxxxxxx"}
+
+
+/unblock:
+  put:
+    body:
+      application/json:
+        example: !include example/unblock_put_request.json
+        type: unblock
+    responses:
+      200:
+        body:
+          application/json:
+            example:
+              {"status" : "Account xxxxx is unblocked"}

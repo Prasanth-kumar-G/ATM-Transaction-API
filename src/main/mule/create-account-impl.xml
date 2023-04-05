@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd 
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd">
+	<sub-flow name="create-account-implSub_Flow" doc:id="f9d91f0c-1107-4f1a-a573-4296c0adda55" >
+        <ee:transform doc:name="Payload+Var_payload" doc:id="eedaa583-83c8-4e50-acb1-ac4c445619ed" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"customerName" : attributes.queryParams.customerName,
+	"bank": attributes.queryParams.bank,
+	"type": attributes.queryParams."type",
+	"branchName": attributes.queryParams.branchName,
+	"accountNum": payload.accountNum,
+	"atmPin": payload.atmPin,
+	"depositAmount": payload.depositAmount,
+	"contact": payload.contact,
+	"mailId": payload.mailId,
+	"ifscCode": payload.ifscCode,
+	"accountStatus": payload.accountStatus
+}]]></ee:set-payload>
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="var_payload" ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"customerName" : attributes.queryParams.customerName,
+	"bank": attributes.queryParams.bank,
+	"type": attributes.queryParams."type",
+	"accountStatus": payload.accountStatus,
+	"branchName": attributes.queryParams.branchName,
+	"accountNum": payload.accountNum,
+	"atmPin": payload.atmPin,
+	"depositAmount": payload.depositAmount,
+	"contact": payload.contact,
+	"mailId": payload.mailId,
+	"ifscCode": payload.ifscCode
+}]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<db:select doc:name="Select" doc:id="51e89bc5-ac28-44b2-a2ab-1aaa59ee5e5f" config-ref="Database_Config">
+			<db:sql ><![CDATA[SELECT * FROM Bank_Transactions where (custName = :customerName) and 
+	(bankName = :bankName);]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+	customerName: payload.customerName,
+	bankName: payload.bank
+}]]]></db:input-parameters>
+		</db:select>
+		<logger level="INFO" doc:name="Logger" doc:id="1a682697-cc07-4a3c-95bf-da2ac187b1f3" message="Connected to Database"/>
+		<choice doc:name="Choice" doc:id="2252f558-c789-4fa3-a71e-f0ee7c46ee19" >
+			<when expression="#[sizeOf(payload)&gt; 0]">
+				<ee:transform>
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+
+ {
+  status: "Account " ++ vars.var_payload.accountNum ++  " already exists"
+  }
+  
+]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+			</when>
+			<otherwise >
+				<logger level="INFO" doc:name="Logger" doc:id="eb474e4a-a626-454a-a250-5ac694dd9800" message='#[{&#10;	&#10;Hello : " Please wait a moment. We are Creating your Account !!!"&#10;}]' />
+				<flow-ref doc:name="createAccount_insert" doc:id="1bcbdb1e-bba4-48a3-8974-e16be3cb1e3d" name="createAccount_insert"/>
+			</otherwise>
+		</choice>
+	</sub-flow>
+
+<flow name="createAccount_insert" doc:id="c7c6589b-f641-4f31-835a-ea9a9a2a9811" >
+		<db:insert doc:name="Insert" doc:id="612bda5a-2709-4ae7-985e-b20ab0d6c1dc" config-ref="Database_Config">
+					<db:sql><![CDATA[insert into Bank_Transactions (custName,bankName,accountType,branchName,custAccNum,
+	atmPin,totalBalance,phoneNumber,mailId,ifscCode,transactionTimeStamp,accountStatus)
+values (:custName,:bankName,:accountType,:branchName,:custAccNum,
+	:atmPin,:totalBalance,:phoneNumber,:mailId,:ifscCode,:transactionTimeStamp,:accountStatus)]]></db:sql>
+					<db:input-parameters><![CDATA[#[{
+	"custName" : vars.var_payload.customerName,
+	"bankName": vars.var_payload.bank,
+	"accountStatus": vars.var_payload.accountStatus,
+	"accountType": vars.var_payload."type",
+	"branchName": vars.var_payload.branchName,
+	"custAccNum": vars.var_payload.accountNum,
+	"atmPin": vars.var_payload.atmPin,
+	"totalBalance": vars.var_payload.depositAmount,
+	"phoneNumber": vars.var_payload.contact,
+	"mailId": vars.var_payload.mailId,
+	"ifscCode": vars.var_payload.ifscCode,
+	"transactionTimeStamp" : now() as Date
+}]]]></db:input-parameters>
+				</db:insert>
+		<ee:transform doc:name="Transform Message" doc:id="2a8ac5fd-186c-4352-967e-83c71be21d9b" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	status : "Account Created Successfully with Account Number " ++ vars.var_payload.accountNum
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<logger level="INFO" doc:name="Logger" doc:id="07911564-7f61-4deb-b8c9-cc2d93bebf1d" message="#[payload]"/>
+	</flow>
+	
+	</mule>
